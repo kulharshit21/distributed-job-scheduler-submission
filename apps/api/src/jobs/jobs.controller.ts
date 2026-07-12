@@ -1,8 +1,20 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Req, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  UseGuards,
+  Req,
+  Query,
+} from '@nestjs/common';
 import { JobsService } from './jobs.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { CreateScheduledJobDto } from './dto/create-scheduled-job.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CreateJobValidationPipe } from './dto/create-job-validation.pipe';
+import { AddJobLogDto } from './dto/add-job-log.dto';
+import { JobsQueryDto } from './dto/jobs-query.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('api/v1')
@@ -10,7 +22,11 @@ export class JobsController {
   constructor(private readonly jobsService: JobsService) {}
 
   @Post('queues/:queueId/jobs')
-  createJob(@Param('queueId') queueId: string, @Body() dto: CreateJobDto | CreateJobDto[], @Req() req: any) {
+  createJob(
+    @Param('queueId') queueId: string,
+    @Body(CreateJobValidationPipe) dto: CreateJobDto | CreateJobDto[],
+    @Req() req: any,
+  ) {
     if (Array.isArray(dto)) {
       return this.jobsService.createBatch(queueId, req.user.orgId, dto);
     }
@@ -18,7 +34,11 @@ export class JobsController {
   }
 
   @Post('queues/:queueId/scheduled-jobs')
-  createScheduledJob(@Param('queueId') queueId: string, @Body() dto: CreateScheduledJobDto, @Req() req: any) {
+  createScheduledJob(
+    @Param('queueId') queueId: string,
+    @Body() dto: CreateScheduledJobDto,
+    @Req() req: any,
+  ) {
     return this.jobsService.createScheduledJob(queueId, req.user.orgId, dto);
   }
 
@@ -26,11 +46,15 @@ export class JobsController {
   findAllJobs(
     @Param('queueId') queueId: string,
     @Req() req: any,
-    @Query('status') status?: string,
-    @Query('limit') limit?: string,
-    @Query('cursor') cursor?: string,
+    @Query() query: JobsQueryDto,
   ) {
-    return this.jobsService.findAllJobs(queueId, req.user.orgId, status, limit ? parseInt(limit) : 25, cursor);
+    return this.jobsService.findAllJobs(
+      queueId,
+      req.user.orgId,
+      query.status,
+      query.limit ?? 25,
+      query.cursor,
+    );
   }
 
   @Get('jobs/:id')
@@ -54,7 +78,16 @@ export class JobsController {
   }
 
   @Post('jobs/:id/logs')
-  addJobLog(@Param('id') id: string, @Body() body: any, @Req() req: any) {
-    return this.jobsService.addJobLog(id, req.user.orgId, body.message, body.level);
+  addJobLog(
+    @Param('id') id: string,
+    @Body() body: AddJobLogDto,
+    @Req() req: any,
+  ) {
+    return this.jobsService.addJobLog(
+      id,
+      req.user.orgId,
+      body.message,
+      body.level,
+    );
   }
 }

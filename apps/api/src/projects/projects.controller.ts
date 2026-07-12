@@ -1,8 +1,20 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  Req,
+  Query,
+} from '@nestjs/common';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('api/v1/projects')
@@ -11,12 +23,20 @@ export class ProjectsController {
 
   @Post()
   create(@Body() createProjectDto: CreateProjectDto, @Req() req: any) {
-    return this.projectsService.create(createProjectDto, req.user.userId, req.user.orgId);
+    return this.projectsService.create(
+      createProjectDto,
+      req.user.userId,
+      req.user.orgId,
+    );
   }
 
   @Get()
-  findAll(@Req() req: any, @Query('limit') limit?: string, @Query('cursor') cursor?: string) {
-    return this.projectsService.findAll(req.user.orgId, limit ? parseInt(limit) : 25, cursor);
+  findAll(@Req() req: any, @Query() query: PaginationQueryDto) {
+    return this.projectsService.findAll(
+      req.user.orgId,
+      query.limit ?? 25,
+      query.cursor,
+    );
   }
 
   @Get(':id')
@@ -25,7 +45,11 @@ export class ProjectsController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateProjectDto: UpdateProjectDto, @Req() req: any) {
+  update(
+    @Param('id') id: string,
+    @Body() updateProjectDto: UpdateProjectDto,
+    @Req() req: any,
+  ) {
     return this.projectsService.update(id, updateProjectDto, req.user.orgId);
   }
 

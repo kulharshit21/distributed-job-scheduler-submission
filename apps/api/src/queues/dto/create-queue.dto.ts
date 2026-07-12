@@ -1,4 +1,11 @@
-import { IsString, IsNotEmpty, IsInt, Min, IsOptional, IsUUID } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsInt,
+  Min,
+  IsOptional,
+  IsUUID,
+} from 'class-validator';
 
 export class CreateQueueDto {
   @IsString()

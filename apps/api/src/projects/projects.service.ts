@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
@@ -7,7 +11,11 @@ import { UpdateProjectDto } from './dto/update-project.dto';
 export class ProjectsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(createProjectDto: CreateProjectDto, userId: string, orgId: string) {
+  async create(
+    createProjectDto: CreateProjectDto,
+    userId: string,
+    orgId: string,
+  ) {
     return this.prisma.project.create({
       data: {
         name: createProjectDto.name,

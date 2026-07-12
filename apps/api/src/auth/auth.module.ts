@@ -11,7 +11,7 @@ import { DatabaseModule } from '../database/database.module';
     DatabaseModule,
     PassportModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'supersecret123',
+      secret: process.env.JWT_SECRET!,
       signOptions: { expiresIn: '15m' },
     }),
   ],

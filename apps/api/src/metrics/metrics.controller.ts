@@ -1,4 +1,10 @@
-import { Controller, Get, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Res,
+  Req,
+  UnauthorizedException,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { PrismaService } from '../database/prisma.service';
 import * as client from 'prom-client';
@@ -20,7 +26,16 @@ export class MetricsController {
   }
 
   @Get()
-  async getMetrics(@Res() res: Response) {
+  async getMetrics(@Req() req: any, @Res() res: Response) {
+    const metricsToken = process.env.METRICS_TOKEN;
+    if (metricsToken) {
+      const headerToken = req.headers['x-metrics-token'];
+      const queryToken = req.query?.['token'];
+      if (headerToken !== metricsToken && queryToken !== metricsToken) {
+        throw new UnauthorizedException('Unauthorized');
+      }
+    }
+
     // Update gauges
     const stats = await this.prisma.job.groupBy({
       by: ['status'],

@@ -10,7 +10,15 @@ import { MetricsModule } from './metrics/metrics.module';
 import { EventsModule } from './events/events.module';
 
 @Module({
-  imports: [AuthModule, DatabaseModule, ProjectsModule, QueuesModule, JobsModule, MetricsModule, EventsModule],
+  imports: [
+    AuthModule,
+    DatabaseModule,
+    ProjectsModule,
+    QueuesModule,
+    JobsModule,
+    MetricsModule,
+    EventsModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

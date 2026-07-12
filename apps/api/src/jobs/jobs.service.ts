@@ -1,7 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { CreateJobDto } from './dto/create-job.dto';
-const cronParser = require('cron-parser');
+import * as cronParser from 'cron-parser';
 import { CreateScheduledJobDto } from './dto/create-scheduled-job.dto';
 
 @Injectable()
@@ -19,24 +23,44 @@ export class JobsService {
 
     if (dto.idempotency_key) {
       const existing = await this.prisma.job.findUnique({
-        where: { queue_id_idempotency_key: { queue_id: queueId, idempotency_key: dto.idempotency_key } },
+        where: {
+          queue_id_idempotency_key: {
+            queue_id: queueId,
+            idempotency_key: dto.idempotency_key,
+          },
+        },
       });
       if (existing) return existing;
     }
 
-    return this.prisma.job.create({
-      data: {
-        queue_id: queueId,
-        type: dto.type,
-        payload: dto.payload,
-        priority: dto.priority || 0,
-        status,
-        run_at: runAt,
-        idempotency_key: dto.idempotency_key,
-        batch_id: dto.batch_id,
-        max_attempts: 3, // Default, can be overridden by queue policy later
-      },
-    });
+    try {
+      return await this.prisma.job.create({
+        data: {
+          queue_id: queueId,
+          type: dto.type,
+          payload: dto.payload,
+          priority: dto.priority || 0,
+          status,
+          run_at: runAt,
+          idempotency_key: dto.idempotency_key,
+          batch_id: dto.batch_id,
+          max_attempts: 3, // Default, can be overridden by queue policy later
+        },
+      });
+    } catch (error: any) {
+      if (error.code === 'P2002' && dto.idempotency_key) {
+        const existing = await this.prisma.job.findUnique({
+          where: {
+            queue_id_idempotency_key: {
+              queue_id: queueId,
+              idempotency_key: dto.idempotency_key,
+            },
+          },
+        });
+        if (existing) return existing;
+      }
+      throw error;
+    }
   }
 
   async createBatch(queueId: string, orgId: string, dtos: CreateJobDto[]) {
@@ -54,7 +78,7 @@ export class JobsService {
     });
 
     const jobs = await this.prisma.$transaction(
-      dtos.map(dto => {
+      dtos.map((dto) => {
         const status = dto.run_at ? 'scheduled' : 'queued';
         const runAt = dto.run_at ? new Date(dto.run_at) : new Date();
         return this.prisma.job.create({
@@ -66,23 +90,35 @@ export class JobsService {
             status,
             run_at: runAt,
             batch_id: batch.id,
+            idempotency_key: dto.idempotency_key,
             max_attempts: 3,
           },
         });
-      })
+      }),
     );
 
     return { batch, jobs };
   }
 
-  async createScheduledJob(queueId: string, orgId: string, dto: CreateScheduledJobDto) {
+  async createScheduledJob(
+    queueId: string,
+    orgId: string,
+    dto: CreateScheduledJobDto,
+  ) {
     const queue = await this.prisma.queue.findFirst({
       where: { id: queueId, project: { org_id: orgId } },
     });
     if (!queue) throw new NotFoundException('Queue not found');
 
-    const interval = cronParser.parseExpression(dto.cron_expression, { tz: dto.timezone || 'UTC' });
-    const nextRunAt = interval.next().toDate();
+    let nextRunAt: Date;
+    try {
+      const interval = cronParser.default.parse(dto.cron_expression, {
+        tz: dto.timezone || 'UTC',
+      });
+      nextRunAt = interval.next().toDate();
+    } catch (error) {
+      throw new BadRequestException('Invalid cron expression or timezone');
+    }
 
     return this.prisma.scheduledJob.create({
       data: {
@@ -101,7 +137,9 @@ export class JobsService {
     });
     if (!job) throw new NotFoundException('Job not found');
     if (job.status !== 'queued' && job.status !== 'scheduled') {
-      throw new NotFoundException('Only queued or scheduled jobs can be cancelled');
+      throw new NotFoundException(
+        'Only queued or scheduled jobs can be cancelled',
+      );
     }
 
     return this.prisma.job.update({
@@ -110,7 +148,13 @@ export class JobsService {
     });
   }
 
-  async findAllJobs(queueId: string, orgId: string, status?: string, limit: number = 25, cursor?: string) {
+  async findAllJobs(
+    queueId: string,
+    orgId: string,
+    status?: string,
+    limit: number = 25,
+    cursor?: string,
+  ) {
     const args: any = {
       where: { queue_id: queueId, queue: { project: { org_id: orgId } } },
       take: limit,
@@ -136,18 +180,19 @@ export class JobsService {
   async requeueJob(id: string, orgId: string) {
     const job = await this.prisma.job.findUnique({
       where: { id },
-      include: { dead_letter_entry: true }
+      include: { dead_letter_entry: true },
     });
 
     if (!job) throw new NotFoundException('Job not found');
-    if (!job.dead_letter_entry) throw new BadRequestException('Job is not in dead letter queue');
+    if (!job.dead_letter_entry)
+      throw new BadRequestException('Job is not in dead letter queue');
 
     return this.prisma.$transaction([
       this.prisma.job.update({
         where: { id },
-        data: { status: 'queued', attempt_count: 0, run_at: new Date() }
+        data: { status: 'queued', attempt_count: 0, run_at: new Date() },
       }),
-      this.prisma.deadLetterQueue.delete({ where: { job_id: id } })
+      this.prisma.deadLetterQueue.delete({ where: { job_id: id } }),
     ]);
   }
 
@@ -155,11 +200,16 @@ export class JobsService {
     await this.getJob(id, orgId); // Verify access
     return this.prisma.jobLog.findMany({
       where: { job_id: id },
-      orderBy: { created_at: 'asc' }
+      orderBy: { created_at: 'asc' },
     });
   }
 
-  async addJobLog(id: string, orgId: string, message: string, level: string = 'info') {
+  async addJobLog(
+    id: string,
+    orgId: string,
+    message: string,
+    level: string = 'info',
+  ) {
     const job = await this.getJob(id, orgId);
     return this.prisma.jobLog.create({
       data: {
@@ -167,7 +217,7 @@ export class JobsService {
         message,
         level,
         execution_id: job.executions[0]?.id || null,
-      }
+      },
     });
   }
 }

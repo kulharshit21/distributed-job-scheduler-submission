@@ -8,6 +8,8 @@ describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
 
   beforeEach(async () => {
+    process.env.JWT_SECRET = 'testsecret12345678901234567890';
+    process.env.JWT_REFRESH_SECRET = 'testrefreshsecret12345678901234567890';
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -24,6 +26,8 @@ describe('AppController (e2e)', () => {
   });
 
   afterEach(async () => {
-    await app.close();
+    if (app) {
+      await app.close();
+    }
   });
 });

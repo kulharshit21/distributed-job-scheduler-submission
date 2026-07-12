@@ -1,8 +1,20 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  Req,
+  Query,
+} from '@nestjs/common';
 import { QueuesService } from './queues.service';
 import { CreateQueueDto } from './dto/create-queue.dto';
 import { UpdateQueueDto } from './dto/update-queue.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('api/v1')
@@ -10,13 +22,26 @@ export class QueuesController {
   constructor(private readonly queuesService: QueuesService) {}
 
   @Post('projects/:projectId/queues')
-  create(@Param('projectId') projectId: string, @Body() createQueueDto: CreateQueueDto, @Req() req: any) {
+  create(
+    @Param('projectId') projectId: string,
+    @Body() createQueueDto: CreateQueueDto,
+    @Req() req: any,
+  ) {
     return this.queuesService.create(projectId, createQueueDto, req.user.orgId);
   }
 
   @Get('projects/:projectId/queues')
-  findAll(@Param('projectId') projectId: string, @Req() req: any, @Query('limit') limit?: string, @Query('cursor') cursor?: string) {
-    return this.queuesService.findAll(projectId, req.user.orgId, limit ? parseInt(limit) : 25, cursor);
+  findAll(
+    @Param('projectId') projectId: string,
+    @Req() req: any,
+    @Query() query: PaginationQueryDto,
+  ) {
+    return this.queuesService.findAll(
+      projectId,
+      req.user.orgId,
+      query.limit ?? 25,
+      query.cursor,
+    );
   }
 
   @Get('queues/:id')
@@ -25,7 +50,11 @@ export class QueuesController {
   }
 
   @Patch('queues/:id')
-  update(@Param('id') id: string, @Body() updateQueueDto: UpdateQueueDto, @Req() req: any) {
+  update(
+    @Param('id') id: string,
+    @Body() updateQueueDto: UpdateQueueDto,
+    @Req() req: any,
+  ) {
     return this.queuesService.update(id, updateQueueDto, req.user.orgId);
   }
 

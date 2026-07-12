@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { CreateQueueDto } from './dto/create-queue.dto';
 import { UpdateQueueDto } from './dto/update-queue.dto';
@@ -7,7 +11,11 @@ import { UpdateQueueDto } from './dto/update-queue.dto';
 export class QueuesService {
   constructor(private prisma: PrismaService) {}
 
-  async create(projectId: string, createQueueDto: CreateQueueDto, orgId: string) {
+  async create(
+    projectId: string,
+    createQueueDto: CreateQueueDto,
+    orgId: string,
+  ) {
     // Verify project belongs to org
     const project = await this.prisma.project.findFirst({
       where: { id: projectId, org_id: orgId },
@@ -17,7 +25,10 @@ export class QueuesService {
     const existing = await this.prisma.queue.findFirst({
       where: { project_id: projectId, name: createQueueDto.name },
     });
-    if (existing) throw new ConflictException('Queue with this name already exists in project');
+    if (existing)
+      throw new ConflictException(
+        'Queue with this name already exists in project',
+      );
 
     return this.prisma.queue.create({
       data: {
@@ -27,7 +38,12 @@ export class QueuesService {
     });
   }
 
-  async findAll(projectId: string, orgId: string, limit: number = 25, cursor?: string) {
+  async findAll(
+    projectId: string,
+    orgId: string,
+    limit: number = 25,
+    cursor?: string,
+  ) {
     const project = await this.prisma.project.findFirst({
       where: { id: projectId, org_id: orgId },
     });
@@ -86,7 +102,7 @@ export class QueuesService {
   async stats(id: string, orgId: string) {
     await this.findOne(id, orgId);
     const queue = await this.prisma.queue.findUnique({ where: { id } });
-    
+
     // Aggregate job stats
     const stats = await this.prisma.job.groupBy({
       by: ['status'],
@@ -103,7 +119,10 @@ export class QueuesService {
       queue_id: id,
       current_running: queue?.current_running,
       is_paused: queue?.is_paused,
-      job_counts: stats.reduce((acc, curr) => ({ ...acc, [curr.status]: curr._count.id }), {}),
+      job_counts: stats.reduce(
+        (acc, curr) => ({ ...acc, [curr.status]: curr._count.id }),
+        {},
+      ),
       avg_duration_ms: execStats._avg.duration_ms || 0,
     };
   }

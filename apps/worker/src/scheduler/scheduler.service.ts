@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import Redis from 'ioredis';
-const cronParser = require('cron-parser');
+import * as cronParser from 'cron-parser';
 
 @Injectable()
 export class SchedulerService implements OnModuleInit, OnModuleDestroy {
@@ -9,6 +9,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   private redis!: Redis;
   private isLeader = false;
   private pollInterval: NodeJS.Timeout | null = null;
+  private leaderElectionInterval: NodeJS.Timeout | null = null;
   private isRunning = false;
   private leaderKey = 'scheduler:leader';
   private leaderInstanceId = Math.random().toString(36).substring(7);
@@ -17,10 +18,16 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     this.redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
+    
+    // Add Redis error listener to prevent process crashes on connection drops
+    this.redis.on('error', (err) => {
+      this.logger.error('Redis error emitted:', err);
+    });
+
     this.isRunning = true;
     
     // Attempt leader election every 10 seconds
-    setInterval(() => this.tryAcquireLeader(), 10000);
+    this.leaderElectionInterval = setInterval(() => this.tryAcquireLeader(), 10000);
     this.tryAcquireLeader();
 
     // Materialize jobs every 15 seconds
@@ -30,10 +37,21 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy() {
     this.isRunning = false;
     if (this.pollInterval) clearInterval(this.pollInterval);
+    if (this.leaderElectionInterval) clearInterval(this.leaderElectionInterval);
+    
     if (this.isLeader) {
-      await this.redis.del(this.leaderKey);
+      try {
+        await this.redis.del(this.leaderKey);
+      } catch (err) {
+        this.logger.error('Failed to release leader key on shutdown', err);
+      }
     }
-    await this.redis.quit();
+    
+    try {
+      await this.redis.quit();
+    } catch (err) {
+      this.logger.error('Failed to close Redis connection on shutdown', err);
+    }
   }
 
   private async tryAcquireLeader() {
@@ -69,12 +87,15 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     try {
       const now = new Date();
       await this.prisma.$transaction(async (tx) => {
+        // Enforce checking of is_active status to prevent materialization of disabled scheduled jobs
         const dueJobs = await tx.$queryRaw<any[]>`
           SELECT * FROM scheduled_jobs 
-          WHERE next_run_at <= ${now} 
+          WHERE next_run_at <= ${now} AND is_active = true
           FOR UPDATE SKIP LOCKED;
         `;
+        
         if (dueJobs.length === 0) return;
+        
         for (const sJob of dueJobs) {
           this.logger.log(`Materializing scheduled job ${sJob.id}`);
           await tx.job.create({
@@ -88,8 +109,9 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
               max_attempts: sJob.job_template.max_attempts || 3,
             }
           });
+          
           try {
-            const interval = cronParser.parseExpression(sJob.cron_expression, { tz: sJob.timezone, currentDate: now });
+            const interval = cronParser.default.parse(sJob.cron_expression, { tz: sJob.timezone, currentDate: now });
             const nextRun = interval.next().toDate();
             await tx.scheduledJob.update({
               where: { id: sJob.id },
@@ -120,28 +142,60 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     });
 
     for (const worker of deadWorkers) {
-      this.logger.log(`Worker ${worker.id} marked offline (orphan detection)`);
-      await this.prisma.$transaction(async (tx) => {
-        // Mark worker offline
-        await tx.worker.update({
-          where: { id: worker.id },
-          data: { status: 'offline', current_load: 0 }
-        });
-        
-        // Requeue jobs claimed by this worker
-        const jobs = await tx.job.findMany({
-          where: { claimed_by_worker_id: worker.id, status: 'running' }
-        });
+      try {
+        await this.prisma.$transaction(async (tx) => {
+          // Double check worker status inside transaction (with lock)
+          const currentWorker = await tx.worker.findUnique({
+            where: { id: worker.id }
+          });
+          if (!currentWorker || currentWorker.status !== 'active') return;
 
-        for (const job of jobs) {
-          await tx.job.update({
-            where: { id: job.id },
-            data: { status: 'queued', claimed_by_worker_id: null, attempt_count: Math.max(0, job.attempt_count - 1) }
+          this.logger.log(`Worker ${worker.id} marked offline (orphan detection)`);
+
+          // Mark worker offline
+          await tx.worker.update({
+            where: { id: worker.id },
+            data: { status: 'offline', current_load: 0 }
           });
           
-          await tx.$executeRaw`UPDATE queues SET current_running = GREATEST(0, current_running - 1) WHERE id = ${job.queue_id}::uuid;`;
-        }
-      });
+          // Requeue jobs claimed by this worker. Include both 'claimed' and 'running' statuses
+          const jobs = await tx.job.findMany({
+            where: { 
+              claimed_by_worker_id: worker.id, 
+              status: { in: ['claimed', 'running'] } 
+            }
+          });
+
+          for (const job of jobs) {
+            // Requeue the job without decrementing attempt_count
+            await tx.job.update({
+              where: { id: job.id },
+              data: { status: 'queued', claimed_by_worker_id: null, attempt_count: job.attempt_count }
+            });
+            
+            // Clean up corresponding execution records if the job was actually running
+            if (job.status === 'running') {
+              await tx.jobExecution.updateMany({
+                where: { job_id: job.id, worker_id: worker.id, status: 'running' },
+                data: { 
+                  status: 'failed', 
+                  finished_at: new Date(), 
+                  error_message: 'Worker offline (orphan detection)' 
+                }
+              });
+            }
+            
+            // Decrement running count of the queue safely
+            await tx.$executeRaw`
+              UPDATE queues 
+              SET current_running = GREATEST(0, current_running - 1) 
+              WHERE id = ${job.queue_id}::uuid;
+            `;
+          }
+        });
+      } catch (err) {
+        this.logger.error(`Failed to execute orphan detection for worker ${worker.id}`, err);
+      }
     }
   }
 }

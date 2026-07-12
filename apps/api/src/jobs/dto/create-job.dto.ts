@@ -1,4 +1,12 @@
-import { IsString, IsNotEmpty, IsOptional, IsInt, IsUUID, IsDateString, IsObject } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsInt,
+  IsUUID,
+  IsDateString,
+  IsObject,
+} from 'class-validator';
 
 export class CreateJobDto {
   @IsString()

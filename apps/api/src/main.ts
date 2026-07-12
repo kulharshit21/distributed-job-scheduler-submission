@@ -2,7 +2,25 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 dotenv.config(); // loads from process env (Railway injects these)
 dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
-dotenv.config({ path: path.resolve(__dirname, '..', '..', '..', 'packages', 'database', '.env') });
+dotenv.config({
+  path: path.resolve(
+    __dirname,
+    '..',
+    '..',
+    '..',
+    'packages',
+    'database',
+    '.env',
+  ),
+});
+
+// Throw startup errors if JWT secrets are missing
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is missing');
+}
+if (!process.env.JWT_REFRESH_SECRET) {
+  throw new Error('JWT_REFRESH_SECRET environment variable is missing');
+}
 
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
@@ -11,12 +29,15 @@ import { RedisIoAdapter } from './adapters/redis-io.adapter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
+
+  const allowedOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
+    : false;
   app.enableCors({
-    origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : true,
+    origin: allowedOrigins,
     credentials: true,
   });
-  
+
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 
   // Only connect Redis adapter if REDIS_URL is available

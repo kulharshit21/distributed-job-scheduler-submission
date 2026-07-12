@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../database/prisma.service';
@@ -13,12 +17,16 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    const existingUser = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
     if (existingUser) {
       throw new ConflictException('Email already in use');
     }
 
-    let org = await this.prisma.organization.findUnique({ where: { slug: dto.organizationName.toLowerCase() } });
+    let org = await this.prisma.organization.findUnique({
+      where: { slug: dto.organizationName.toLowerCase() },
+    });
     if (!org) {
       org = await this.prisma.organization.create({
         data: {
@@ -42,12 +50,17 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const isPasswordValid = await argon2.verify(user.password_hash, dto.password);
+    const isPasswordValid = await argon2.verify(
+      user.password_hash,
+      dto.password,
+    );
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -58,9 +71,11 @@ export class AuthService {
   async refresh(refreshToken: string) {
     try {
       const payload = this.jwtService.verify(refreshToken, {
-        secret: process.env.JWT_REFRESH_SECRET || 'superrefresh123',
+        secret: process.env.JWT_REFRESH_SECRET!,
       });
-      const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+      });
       if (!user) {
         throw new UnauthorizedException('User not found');
       }
@@ -70,12 +85,23 @@ export class AuthService {
     }
   }
 
+  async verifyToken(token: string): Promise<any> {
+    return this.jwtService.verify(token, {
+      secret: process.env.JWT_SECRET!,
+    });
+  }
+
   private generateTokens(user: any) {
-    const payload = { sub: user.id, email: user.email, role: user.role, orgId: user.org_id };
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      orgId: user.org_id,
+    };
     return {
       access_token: this.jwtService.sign(payload, { expiresIn: '15m' }),
       refresh_token: this.jwtService.sign(payload, {
-        secret: process.env.JWT_REFRESH_SECRET || 'superrefresh123',
+        secret: process.env.JWT_REFRESH_SECRET!,
         expiresIn: '7d',
       }),
     };
