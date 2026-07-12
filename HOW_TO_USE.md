@@ -88,3 +88,16 @@ curl -X POST http://localhost:3000/api/v1/queues/$QUEUE_ID/jobs \
 ```
 
 Watch the worker terminal—it will instantly pick up the job and execute it!
+
+
+## 5. Demo Credentials
+
+If you seeded the database, you can log in to the web app using the following test credentials:
+- **Email:** demo@acmecorp.com
+- **Password:** password123
+
+
+## 6. Live Deployment
+
+- **Frontend URL:** https://distributed-job-scheduler-submissio.vercel.app/login
+
