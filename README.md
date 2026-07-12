@@ -31,8 +31,8 @@ The Distributed Job Scheduler is an enterprise-grade background task queueing an
 The architecture relies on decoupled API and Worker services communicating via PostgreSQL for state and Redis for real-time signaling.
 
 <div align="center">
-  <a href="./assets/architecture.png" target="_blank">
-    <img src="./assets/architecture.png" alt="System Architecture Diagram" width="700">
+  <a href="./assets/architecture.jpg" target="_blank">
+    <img src="./assets/architecture.jpg" alt="System Architecture Diagram" width="700">
   </a>
   <p><i>Click diagram to zoom in</i></p>
 </div>
@@ -50,8 +50,8 @@ The architecture relies on decoupled API and Worker services communicating via P
 The database schema is heavily optimized for concurrent write-heavy throughput, enforcing foreign key integrity across Organizations, Projects, Queues, and Execution logs.
 
 <div align="center">
-  <a href="./assets/er-diagram.png" target="_blank">
-    <img src="./assets/er-diagram.png" alt="ER Diagram" width="500">
+  <a href="./assets/er-diagram.jpg" target="_blank">
+    <img src="./assets/er-diagram.jpg" alt="ER Diagram" width="500">
   </a>
   <p><i>Click diagram to zoom in</i></p>
 </div>
