@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, FolderOpen, X, Loader2 } from 'lucide-react';
 import api from '../lib/api';
@@ -211,7 +212,7 @@ function ProjectCard({ project, index }: { project: any, index: number }) {
         </button>
       </div>
 
-      {showQueueModal && (
+      {showQueueModal && createPortal(
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
@@ -255,7 +256,8 @@ function ProjectCard({ project, index }: { project: any, index: number }) {
               </div>
             </form>
           </motion.div>
-        </div>
+        </div>,
+        document.body
       )}
     </motion.div>
   );
