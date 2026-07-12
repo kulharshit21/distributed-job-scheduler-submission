@@ -1,0 +1,21 @@
+graph TD
+    %% Core Services
+    Client[Web Dashboard React/Vite] -->|REST & WebSockets| API[API Service NestJS]
+    API -->|Insert Jobs & Fetch State| DB[(PostgreSQL)]
+    Worker[Worker Node NestJS] -->|Claim via SKIP LOCKED| DB
+    
+    %% Real-time PubSub Flow
+    API -.->|Publish Events| Redis[(Redis)]
+    Worker -.->|Publish Status| Redis
+    Redis -.->|Broadcast to Connected Sockets| API
+    
+    %% Styling
+    classDef service fill:#E0234E,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef client fill:#20232A,stroke:#61DAFB,stroke-width:2px,color:#fff;
+    classDef database fill:#316192,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef cache fill:#DD0031,stroke:#fff,stroke-width:2px,color:#fff;
+    
+    class API,Worker service;
+    class Client client;
+    class DB database;
+    class Redis cache;

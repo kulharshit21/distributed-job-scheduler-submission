@@ -1,0 +1,50 @@
+erDiagram
+    Organization ||--o{ Project : owns
+    Organization ||--o{ User : has
+    Project ||--o{ Queue : contains
+    Queue ||--o{ Job : holds
+    Job ||--o{ JobExecution : records
+    Job ||--o{ JobLog : generates
+    Job ||--o{ DeadLetterQueue : moves_to
+
+    Organization {
+        string id PK
+        string name
+    }
+    Project {
+        string id PK
+        string name
+        string org_id FK
+    }
+    Queue {
+        string id PK
+        string name
+        int concurrency_limit
+        string project_id FK
+    }
+    Job {
+        string id PK
+        string queue_id FK
+        string type
+        json payload
+        string status
+        int max_retries
+        int retry_count
+        int priority
+        datetime next_run_at
+        string worker_id
+        datetime locked_until
+    }
+    JobExecution {
+        string id PK
+        string job_id FK
+        string worker_id
+        datetime started_at
+        datetime completed_at
+        string status
+    }
+    DeadLetterQueue {
+        string id PK
+        string job_id FK
+        string reason
+    }
