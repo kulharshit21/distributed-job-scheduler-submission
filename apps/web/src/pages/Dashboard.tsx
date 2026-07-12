@@ -1,10 +1,9 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Play, Pause, Settings2, Trash2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Plus, Settings2 } from 'lucide-react';
 import api from '../lib/api';
 import { Link } from 'react-router-dom';
 
 export default function Dashboard() {
-  const queryClient = useQueryClient();
 
   const { data: projects, isLoading } = useQuery({
     queryKey: ['projects'],
