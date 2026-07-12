@@ -104,7 +104,7 @@ export default function QueueDetail() {
                     </span>
                   </td>
                   <td className="px-6 py-4">{job.attempt_count} / {job.max_attempts}</td>
-                  <td className="px-6 py-4">{new Date(job.created_at).toLocaleString()}</td>
+                  <td className="px-6 py-4">{new Date(job.run_at).toLocaleString()}</td>
                 </tr>
               ))}
               {(!jobs || jobs.length === 0) && (

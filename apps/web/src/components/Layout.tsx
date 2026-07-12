@@ -24,7 +24,7 @@ export default function Layout() {
             <Activity className="w-5 h-5 text-white" />
           </div>
           <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400">
-            KiroScheduler
+            JobScheduler
           </span>
         </Link>
         <div className="flex items-center gap-6">
