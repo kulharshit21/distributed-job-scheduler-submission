@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Settings2, FolderOpen } from 'lucide-react';
+import { Plus, FolderOpen } from 'lucide-react';
 import api from '../lib/api';
 import { Link } from 'react-router-dom';
 

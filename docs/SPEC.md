@@ -4,7 +4,7 @@
 
 ---
 
-## 0. Instructions for Kiro
+## 0. Instructions for AI
 
 Treat this file as the single source-of-truth product + technical specification. Do not ask the user to re-explain scope — it is all below. Concretely:
 

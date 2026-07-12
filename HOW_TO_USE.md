@@ -1,4 +1,4 @@
-# How to Use KiroScheduler
+# How to Use Distributed Job Scheduler
 
 This guide will walk you through setting up, running, and using the Distributed Job Scheduler.
 
@@ -10,7 +10,7 @@ This guide will walk you through setting up, running, and using the Distributed 
 
 ## 2. Infrastructure Setup
 
-KiroScheduler relies on PostgreSQL and Redis. Start them using the provided `docker-compose.yml`:
+The Scheduler relies on PostgreSQL and Redis. Start them using the provided `docker-compose.yml`:
 
 ```bash
 cd d:\COODITY
