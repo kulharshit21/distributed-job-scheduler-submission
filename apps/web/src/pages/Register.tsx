@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Activity, ArrowRight, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
+import { API_BASE_URL } from '../lib/api';
 
 export default function Register() {
   const [email, setEmail] = useState('');
@@ -17,7 +18,7 @@ export default function Register() {
     setLoading(true);
     setError('');
     try {
-      const res = await axios.post('http://localhost:3000/api/v1/auth/register', { 
+      const res = await axios.post(`${API_BASE_URL}/auth/register`, { 
         email, 
         password, 
         organizationName: org 
