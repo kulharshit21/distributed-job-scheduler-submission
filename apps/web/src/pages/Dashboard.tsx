@@ -30,8 +30,8 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {projects?.map((project: any) => (
-          <ProjectCard key={project.id} project={project} />
+        {projects?.map((project: any, index: number) => (
+          <ProjectCard key={project.id} project={project} index={index} />
         ))}
         {projects?.length === 0 && (
           <div className="col-span-full py-12 flex flex-col items-center justify-center glass rounded-2xl border-dashed border-2 border-zinc-800">
@@ -47,7 +47,9 @@ export default function Dashboard() {
   );
 }
 
-function ProjectCard({ project }: { project: any }) {
+import { motion } from 'framer-motion';
+
+function ProjectCard({ project, index }: { project: any, index: number }) {
   const { data: queues } = useQuery({
     queryKey: ['queues', project.id],
     queryFn: async () => {
@@ -57,18 +59,25 @@ function ProjectCard({ project }: { project: any }) {
   });
 
   return (
-    <div className="glass rounded-2xl p-6 flex flex-col">
-      <div className="flex items-start justify-between mb-4">
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.1, duration: 0.4 }}
+      whileHover={{ y: -5, scale: 1.02 }}
+      className="glass rounded-2xl p-6 flex flex-col relative overflow-hidden group border border-zinc-800/50 hover:border-blue-500/30 transition-colors"
+    >
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className="flex items-start justify-between mb-4 relative z-10">
         <div>
-          <h3 className="text-xl font-semibold text-white">{project.name}</h3>
+          <h3 className="text-xl font-semibold text-white group-hover:text-blue-400 transition-colors">{project.name}</h3>
           <p className="text-sm text-zinc-500">ID: {project.id.slice(0, 8)}...</p>
         </div>
-        <div className="p-2 bg-blue-500/10 rounded-lg">
+        <div className="p-2 bg-blue-500/10 rounded-lg group-hover:bg-blue-500/20 transition-colors">
           <FolderOpen className="w-5 h-5 text-blue-400" />
         </div>
       </div>
       
-      <div className="mt-auto pt-4 border-t border-zinc-800/50 space-y-2">
+      <div className="mt-auto pt-4 border-t border-zinc-800/50 space-y-2 relative z-10">
         {queues && queues.length > 0 ? (
           queues.map((queue: any) => (
             <Link 
@@ -83,6 +92,6 @@ function ProjectCard({ project }: { project: any }) {
           <p className="text-zinc-500 text-sm">No queues yet</p>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
