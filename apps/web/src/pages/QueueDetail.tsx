@@ -1,10 +1,14 @@
 import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { Play, Pause, Activity, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Play, Pause, Activity, Clock, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import api from '../lib/api';
+import toast from 'react-hot-toast';
+import { useState } from 'react';
 
 export default function QueueDetail() {
   const { projectId, queueId } = useParams();
+  const queryClient = useQueryClient();
+  const [isToggling, setIsToggling] = useState(false);
 
   const { data: queueStats } = useQuery({
     queryKey: ['queueStats', queueId],
@@ -49,8 +53,34 @@ export default function QueueDetail() {
           <p className="text-zinc-400">Project ID: {projectId}</p>
         </div>
         <div className="flex gap-3">
-          <button className="bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-xl font-medium flex items-center gap-2 transition-colors">
-            {queueStats?.is_paused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+          <button 
+            onClick={async () => {
+              setIsToggling(true);
+              try {
+                if (queueStats?.is_paused) {
+                  await api.post(`/queues/${queueId}/resume`);
+                  toast.success('Queue resumed successfully');
+                } else {
+                  await api.post(`/queues/${queueId}/pause`);
+                  toast.success('Queue paused successfully');
+                }
+                queryClient.invalidateQueries({ queryKey: ['queueStats', queueId] });
+              } catch (err: any) {
+                toast.error(err.response?.data?.message || 'Failed to toggle queue state');
+              } finally {
+                setIsToggling(false);
+              }
+            }}
+            disabled={isToggling}
+            className="bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-xl font-medium flex items-center gap-2 transition-colors disabled:opacity-50"
+          >
+            {isToggling ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : queueStats?.is_paused ? (
+              <Play className="w-4 h-4" />
+            ) : (
+              <Pause className="w-4 h-4" />
+            )}
             {queueStats?.is_paused ? 'Resume' : 'Pause'}
           </button>
         </div>
