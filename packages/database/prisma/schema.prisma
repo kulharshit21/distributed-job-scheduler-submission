@@ -1,0 +1,245 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id       String    @id @default(uuid()) @db.Uuid
+  name     String
+  slug     String    @unique
+  users    User[]
+  projects Project[]
+
+  @@map("organizations")
+}
+
+model User {
+  id              String          @id @default(uuid()) @db.Uuid
+  org_id          String          @db.Uuid
+  email           String          @unique
+  password_hash   String
+  role            String          @default("member")
+  organization    Organization    @relation(fields: [org_id], references: [id])
+  project_members ProjectMember[]
+
+  @@map("users")
+}
+
+model Project {
+  id           String          @id @default(uuid()) @db.Uuid
+  org_id       String          @db.Uuid
+  name         String
+  slug         String
+  created_by   String          @db.Uuid
+  organization Organization    @relation(fields: [org_id], references: [id])
+  members      ProjectMember[]
+  queues       Queue[]
+
+  @@map("projects")
+}
+
+model ProjectMember {
+  project_id String  @db.Uuid
+  user_id    String  @db.Uuid
+  role       String
+
+  project    Project @relation(fields: [project_id], references: [id])
+  user       User    @relation(fields: [user_id], references: [id])
+
+  @@id([project_id, user_id])
+  @@map("project_members")
+}
+
+model Queue {
+  id                      String         @id @default(uuid()) @db.Uuid
+  project_id              String         @db.Uuid
+  name                    String
+  priority                Int            @default(0)
+  concurrency_limit       Int
+  current_running         Int            @default(0)
+  is_paused               Boolean        @default(false)
+  default_retry_policy_id String?        @db.Uuid
+  rate_limit_per_second   Int?
+
+  project              Project        @relation(fields: [project_id], references: [id])
+  default_retry_policy RetryPolicy?   @relation(fields: [default_retry_policy_id], references: [id])
+  jobs                 Job[]
+  scheduled_jobs       ScheduledJob[]
+
+  @@unique([project_id, name])
+  @@index([project_id])
+  @@map("queues")
+}
+
+model RetryPolicy {
+  id            String  @id @default(uuid()) @db.Uuid
+  name          String
+  strategy      String  // fixed, linear, exponential
+  base_delay_ms Int
+  max_delay_ms  Int
+  max_attempts  Int
+  multiplier    Float
+  jitter        Boolean @default(false)
+
+  queues        Queue[]
+  jobs          Job[]
+
+  @@map("retry_policies")
+}
+
+model Job {
+  id                      String    @id @default(uuid()) @db.Uuid
+  queue_id                String    @db.Uuid
+  retry_policy_id         String?   @db.Uuid
+  batch_id                String?   @db.Uuid
+  parent_scheduled_job_id String?   @db.Uuid
+  claimed_by_worker_id    String?   @db.Uuid
+  type                    String
+  payload                 Json
+  status                  String
+  priority                Int       @default(0)
+  attempt_count           Int       @default(0)
+  max_attempts            Int
+  idempotency_key         String?
+  run_at                  DateTime  @db.Timestamptz
+  claimed_at              DateTime? @db.Timestamptz
+  started_at              DateTime? @db.Timestamptz
+  completed_at            DateTime? @db.Timestamptz
+
+  queue                Queue           @relation(fields: [queue_id], references: [id], onDelete: Restrict)
+  retry_policy         RetryPolicy?    @relation(fields: [retry_policy_id], references: [id])
+  batch                Batch?          @relation(fields: [batch_id], references: [id])
+  parent_scheduled_job ScheduledJob?   @relation(fields: [parent_scheduled_job_id], references: [id])
+  worker               Worker?         @relation(fields: [claimed_by_worker_id], references: [id])
+
+  executions           JobExecution[]
+  logs                 JobLog[]
+  dead_letter_entry    DeadLetterQueue?
+
+  depends_on           JobDependency[] @relation("DependentJobs")
+  dependent_jobs       JobDependency[] @relation("DependsOn")
+
+  @@unique([queue_id, idempotency_key])
+  @@map("jobs")
+}
+
+model JobExecution {
+  id             BigInt    @id @default(autoincrement())
+  job_id         String    @db.Uuid
+  worker_id      String    @db.Uuid
+  attempt_number Int
+  status         String
+  started_at     DateTime  @db.Timestamptz
+  finished_at    DateTime? @db.Timestamptz
+  duration_ms    Int?
+  error_message  String?
+
+  job            Job       @relation(fields: [job_id], references: [id])
+  worker         Worker    @relation(fields: [worker_id], references: [id])
+  logs           JobLog[]
+
+  @@map("job_executions")
+}
+
+model JobLog {
+  id           BigInt        @id @default(autoincrement())
+  job_id       String        @db.Uuid
+  execution_id BigInt?
+  level        String
+  message      String
+  metadata     Json?
+  created_at   DateTime      @db.Timestamptz @default(now())
+
+  job          Job           @relation(fields: [job_id], references: [id])
+  execution    JobExecution? @relation(fields: [execution_id], references: [id])
+
+  @@index([job_id, created_at])
+  @@map("job_logs")
+}
+
+model Worker {
+  id                   String            @id @default(uuid()) @db.Uuid
+  hostname             String
+  pid                  Int
+  status               String            // active, draining, offline
+  concurrency_capacity Int
+  current_load         Int               @default(0)
+  last_heartbeat_at    DateTime          @db.Timestamptz @default(now())
+
+  executions           JobExecution[]
+  heartbeats           WorkerHeartbeat[]
+  jobs                 Job[]
+
+  @@map("workers")
+}
+
+model WorkerHeartbeat {
+  id                BigInt   @id @default(autoincrement())
+  worker_id         String   @db.Uuid
+  heartbeat_at      DateTime @db.Timestamptz @default(now())
+  active_job_count  Int
+
+  worker            Worker   @relation(fields: [worker_id], references: [id])
+
+  @@map("worker_heartbeats")
+}
+
+model ScheduledJob {
+  id              String    @id @default(uuid()) @db.Uuid
+  queue_id        String    @db.Uuid
+  cron_expression String
+  job_template    Json
+  is_active       Boolean   @default(true)
+  next_run_at     DateTime  @db.Timestamptz
+  last_run_at     DateTime? @db.Timestamptz
+  timezone        String    @default("UTC")
+
+  queue           Queue     @relation(fields: [queue_id], references: [id])
+  jobs            Job[]
+
+  // Note: the partial index "WHERE is_active = true" will be created via raw SQL
+  @@map("scheduled_jobs")
+}
+
+model DeadLetterQueue {
+  id               String   @id @default(uuid()) @db.Uuid
+  job_id           String   @unique @db.Uuid
+  queue_id         String   @db.Uuid
+  payload_snapshot Json
+  failure_reason   String
+  attempt_count    Int
+  resolved         Boolean  @default(false)
+  ai_summary       String?
+
+  job              Job      @relation(fields: [job_id], references: [id])
+
+  @@map("dead_letter_queue")
+}
+
+model Batch {
+  id             String  @id @default(uuid()) @db.Uuid
+  name           String
+  total_jobs     Int
+  completed_jobs Int     @default(0)
+  failed_jobs    Int     @default(0)
+  status         String
+
+  jobs           Job[]
+
+  @@map("batches")
+}
+
+model JobDependency {
+  job_id            String @db.Uuid
+  depends_on_job_id String @db.Uuid
+
+  job               Job    @relation("DependentJobs", fields: [job_id], references: [id])
+  depends_on        Job    @relation("DependsOn", fields: [depends_on_job_id], references: [id])
+
+  @@id([job_id, depends_on_job_id])
+  @@map("job_dependencies")
+}
